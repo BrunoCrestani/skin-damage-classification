@@ -74,7 +74,6 @@ def build_tabular_models(random_state: int = 42) -> dict[str, Pipeline]:
         "logistic_regression": LogisticRegression(
             max_iter=3000,
             class_weight="balanced",
-            multi_class="auto",
             random_state=random_state,
         ),
         "random_forest": RandomForestClassifier(

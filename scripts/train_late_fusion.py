@@ -101,7 +101,7 @@ def main() -> None:
             image_weight,
         )
         val_pred = np.asarray(CLASSES)[val_probs.argmax(axis=1)]
-        metrics = evaluate_predictions(y_val, val_pred, output_dir / f"weight_{image_weight:.1f}", "val")
+        metrics = evaluate_predictions(y_val, val_pred, output_dir / f"weight_{image_weight:.1f}", "val", y_prob=val_probs)
         summary.append({"image_weight": image_weight, **{f"val_{k}": v for k, v in metrics.items()}})
         if metrics["f1_macro"] > best_score:
             best_score = metrics["f1_macro"]
@@ -115,7 +115,7 @@ def main() -> None:
         best_weight,
     )
     test_pred = np.asarray(CLASSES)[test_probs.argmax(axis=1)]
-    test_metrics = evaluate_predictions(y_test, test_pred, output_dir, "test")
+    test_metrics = evaluate_predictions(y_test, test_pred, output_dir, "test", y_prob=test_probs)
     pd.DataFrame(summary).to_csv(output_dir / "weight_search.csv", index=False)
     pd.DataFrame([{"best_image_weight": best_weight, **test_metrics}]).to_csv(
         output_dir / "summary.csv",

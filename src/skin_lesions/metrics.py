@@ -14,12 +14,13 @@ from sklearn.metrics import (
     classification_report,
     confusion_matrix,
     f1_score,
+    roc_auc_score,
 )
 
 from .config import CLASSES
 
 
-def evaluate_predictions(y_true, y_pred, output_dir: Path, prefix: str) -> dict[str, float]:
+def evaluate_predictions(y_true, y_pred, output_dir: Path, prefix: str, y_prob=None) -> dict[str, float]:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     metrics = {
@@ -28,6 +29,18 @@ def evaluate_predictions(y_true, y_pred, output_dir: Path, prefix: str) -> dict[
         "f1_macro": f1_score(y_true, y_pred, average="macro"),
         "f1_weighted": f1_score(y_true, y_pred, average="weighted"),
     }
+
+    if y_prob is not None:
+        try:
+            metrics["roc_auc_macro"] = roc_auc_score(
+                y_true, y_prob, multi_class="ovr", average="macro", labels=CLASSES
+            )
+            metrics["roc_auc_weighted"] = roc_auc_score(
+                y_true, y_prob, multi_class="ovr", average="weighted", labels=CLASSES
+            )
+        except Exception:
+            metrics["roc_auc_macro"] = 0.0
+            metrics["roc_auc_weighted"] = 0.0
 
     report = classification_report(y_true, y_pred, labels=CLASSES, zero_division=0)
     (output_dir / f"{prefix}_classification_report.txt").write_text(report)

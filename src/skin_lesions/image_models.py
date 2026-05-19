@@ -23,7 +23,6 @@ def build_embedding_models(random_state: int = 42):
                     LogisticRegression(
                         max_iter=3000,
                         class_weight="balanced",
-                        multi_class="auto",
                         random_state=random_state,
                     ),
                 ),

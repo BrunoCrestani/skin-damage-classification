@@ -32,18 +32,26 @@ MODEL_CONFIGS = {
 
 
 class HamImageDataset(Dataset):
-    def __init__(self, df: pd.DataFrame, image_size: int = 224):
+    def __init__(self, df: pd.DataFrame, image_size: int = 224, augment: bool = False):
         self.df = df[df["has_image"]].reset_index(drop=True)
-        self.transform = transforms.Compose(
-            [
-                transforms.Resize((image_size, image_size)),
-                transforms.ToTensor(),
-                transforms.Normalize(
-                    mean=[0.485, 0.456, 0.406],
-                    std=[0.229, 0.224, 0.225],
-                ),
-            ]
-        )
+        
+        transform_list = []
+        if augment:
+            transform_list.extend([
+                transforms.RandomHorizontalFlip(p=0.5),
+                transforms.RandomVerticalFlip(p=0.5),
+                transforms.RandomRotation(degrees=15),
+            ])
+        transform_list.extend([
+            transforms.Resize((image_size, image_size)),
+            transforms.ToTensor(),
+            transforms.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225],
+            ),
+        ])
+        
+        self.transform = transforms.Compose(transform_list)
 
     def __len__(self) -> int:
         return len(self.df)
@@ -83,9 +91,10 @@ def extract_embeddings(
     batch_size: int = 32,
     image_size: int = 224,
     num_workers: int = 2,
+    augment: bool = False,
 ) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    dataset = HamImageDataset(df, image_size=image_size)
+    dataset = HamImageDataset(df, image_size=image_size, augment=augment)
     loader = DataLoader(
         dataset,
         batch_size=batch_size,
