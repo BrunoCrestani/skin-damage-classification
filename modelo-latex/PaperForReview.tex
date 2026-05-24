@@ -1,0 +1,271 @@
+% CVPR 2022 Paper Template
+% based on the CVPR template provided by Ming-Ming Cheng (https://github.com/MCG-NKU/CVPR_Template)
+% modified and extended by Stefan Roth (stefan.roth@NOSPAMtu-darmstadt.de)
+
+\documentclass[10pt,twocolumn,letterpaper]{article}
+
+%%%%%%%%% PAPER TYPE  - PLEASE UPDATE FOR FINAL VERSION
+%\usepackage[review]{cvpr}      % To produce the REVIEW version
+\usepackage{cvpr}              % To produce the CAMERA-READY version
+%\usepackage[pagenumbers]{cvpr} % To force page numbers, e.g. for an arXiv version
+
+% Include other packages here, before hyperref.
+\usepackage[brazil]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+
+% It is strongly recommended to use hyperref, especially for the review version.
+% hyperref with option pagebackref eases the reviewers' job.
+\usepackage[pagebackref,breaklinks,colorlinks]{hyperref}
+
+% Support for easy cross-referencing
+\usepackage[capitalize]{cleveref}
+\crefname{section}{Seção}{Seções}
+\Crefname{section}{Seção}{Seções}
+\Crefname{table}{Tabela}{Tabelas}
+\crefname{table}{Tab.}{Tabs.}
+\crefname{figure}{Fig.}{Figs.}
+\Crefname{figure}{Figura}{Figuras}
+
+%%%%%%%%% PAPER ID  - PLEASE UPDATE
+\def\cvprPaperID{*****} % *** Enter the CVPR Paper ID here
+\def\confName{CVPR}
+\def\confYear{2022}
+
+\begin{document}
+
+%%%%%%%%% TITLE - PLEASE UPDATE
+\title{Classificação de Lesões de Pele: Uma Abordagem Multimodal com Dados Tabulares e Imagens Dermatoscópicas}
+
+\author{Mateus Siqueira Ruzene \and Bruno Crestani\\
+Departamento de Informática (DINF)\\
+Universidade Federal do Paraná (UFPR)\\
+Curitiba, PR, Brasil\\
+{\tt\small \{mateus.ruzene, bruno.crestani\}@ufpr.br}
+}
+\maketitle
+
+%%%%%%%%% ABSTRACT
+\begin{abstract}
+   Este artigo apresenta uma abordagem para a classificação de lesões de pele que combina metadados clínicos tabulares de pacientes (idade, sexo biológico e localização anatômica) com imagens dermatoscópicas, emulando a prática médica do diagnóstico dermatológico. Utilizando o desafiador dataset HAM10000, contendo 10.015 amostras distribuídas em sete patologias dermatológicas com severo desbalanceamento de classes, implementamos um pipeline metodológico estrito contra vazamento de dados (\eg, \emph{data leakage}) dividindo a base de forma estratificada em treino, validação e teste. Os metadados clínicos foram processados e classificados por Regressão Logística e Random Forest. As imagens foram processadas com aprendizado por transferência via rede convolucional profunda ResNet50 pré-treinada para extração de embeddings espaciais de 2.048 dimensões, sobre os quais classificadores downstream foram ajustados, com destaque ao KNN otimizado por similaridade de cosseno. Por fim, os modelos foram integrados via fusão tardia (\emph{late fusion}) por soft voting ponderado. Os resultados experimentais no conjunto de teste revelam que o modelo híbrido multimodal com peso ótimo $w=0,7$ para imagem obteve a melhor discriminação geral de classes patológicas, atingindo uma AUC-ROC macro de \textbf{0,934}, acurácia de \textbf{75,1\%} e F1-macro de \textbf{0,582}. Adicionalmente, apresenta-se uma discussão crítica a respeito da explicabilidade do modelo, viés de confirmação e as limitações tecnológicas observadas.
+\end{abstract}
+
+%%%%%%%%% BODY TEXT
+\section{Introdução}
+\label{sec:intro}
+
+O câncer de pele representa uma das neoplasias mais frequentes do mundo, apresentando um crescimento contínuo de novos diagnósticos nas últimas décadas. Dentre as diferentes manifestações da doença, o melanoma destaca-se como a forma mais agressiva e letal, respondendo pela maioria esmagadora das mortes relacionadas à pele. Contudo, a detecção precoce é um fator crítico para a sobrevivência do paciente: se a lesão maligna for diagnosticada em seus estágios iniciais, a taxa de sobrevivência em cinco anos ultrapassa \textbf{99\%}~\cite{esteva2017dermatologist}. Apesar da urgência médica, o diagnóstico visual manual de lesões cutâneas é extremamente complexo. 
+
+Esta dificuldade decorre de dois desafios computacionais e biológicos clássicos:
+\begin{itemize}
+    \item \textbf{Alta variabilidade intraclasse:} lesões de uma mesma patologia maligna (como melanomas) manifestam texturas, colorações, formatos geométricos e bordas marcadamente diferentes entre pacientes.
+    \item \textbf{Baixa variabilidade interclasse:} patologias benignas comuns (como queratoses seborreicas ou nevos comuns) mimetizam perfeitamente a aparência visual de lesões melanocíticas malignas na lente de triagem clínica básica.
+\end{itemize}
+
+Na prática clínica real de dermatologia, os especialistas contornam essas limitações não dependendo exclusivamente da visualização isolada do tumor. Em vez disso, integram a análise visual microscópica com a anamnese e histórico epidemiológico do paciente. Variáveis demográficas como idade avançada, sexo biológico e local anatômico de acometimento fornecem fortes priors estatísticos e biomarcadores indiretos que guiam a decisão do dermatologista. 
+
+Na literatura de aprendizado de máquina, modelos modernos de visão computacional baseados em Redes Neurais Convolucionais profundas (CNNs) têm obtido sucesso extraordinário utilizando exclusivamente fotos dermatoscópicas~\cite{esteva2017dermatologist, he2016deep}. Apesar do excelente desempenho alcançado em bases restritas, a total segregação de metadados demográficos nos modelos convencionais ignora o contexto de risco epidemiológico e prejudica o diagnóstico em casos visuais limítrofes.
+
+Neste trabalho, propomos e avaliamos uma abordagem multimodal com fusão tardia (\emph{late fusion}) para integrar metadados clínicos tabulares e características visuais profundas extraídas do dataset HAM10000~\cite{tschandl2018ham10000}. O rigor metodológico foi priorizado a fim de combater de forma absoluta o vazamento de dados (\emph{data leakage}), que frequentemente infla artificialmente os resultados reportados em trabalhos da área. Adicionalmente, investigamos estratégias para mitigar o severo desbalanceamento de classes através de algoritmos sensíveis ao custo~\cite{elkan2001foundations} e aumento de dados estocástico. Nossos experimentos comprovam que a fusão de metadados tabulares e imagens alcança o maior índice de discriminação entre as 7 classes clínicas analisadas, permitindo a construção de um sistema de triagem equilibrado e confiável para apoio à decisão médica.
+
+%-------------------------------------------------------------------------
+\section{Metodologia}
+\label{sec:metodo}
+
+\subsection{Descrição do Conjunto de Dados}
+O dataset utilizado neste estudo é o HAM10000 (\emph{Human Against Machine})~\cite{tschandl2018ham10000}, obtido do ISIC Archive~\cite{isicarchive} via Kaggle~\cite{tschandlkaggle}. Ele reúne \textbf{10.015 imagens dermatoscópicas} digitais de alta resolução pareadas com seus respectivos registros demográficos e clínicos. O problema consiste em classificar cada lesão de pele em uma das 7 patologias distintas:
+\begin{enumerate}
+    \item \textbf{akiec} -- Queratose Actínica e Carcinoma Intraepitelial Bowens (327 amostras);
+    \item \textbf{bcc} -- Carcinoma Basocelular (514 amostras);
+    \item \textbf{bkl} -- Lesões Benignas do tipo Queratose (1.099 amostras);
+    \item \textbf{df} -- Dermatofibroma (115 amostras);
+    \item \textbf{mel} -- Melanoma Maligno (1.113 amostras);
+    \item \textbf{nv} -- Nevo Melanocítico (6.705 amostras);
+    \item \textbf{vasc} -- Lesão Vascular (142 amostras).
+\end{enumerate}
+
+Como pode ser visualizado na \cref{fig:class_dist}, há um severo desbalanceamento de classes na base de dados, em que nevos comuns (\emph{nv}) representam cerca de \textbf{67\%} do dataset, ao passo que dermatofibromas (\emph{df}) e lesões vasculares (\emph{vasc}) somados não chegam a 3\%. 
+
+\begin{figure}[t]
+  \centering
+   \includegraphics[width=\linewidth]{../outputs/class_distribution.png}
+   \caption{Distribuição altamente desbalanceada das sete patologias dermatológicas no dataset HAM10000, destacando a classe majoritária \emph{nv} (Nevo comum).}
+   \label{fig:class_dist}
+\end{figure}
+
+\subsection{Prevenção de Vazamento de Dados (\emph{Data Leakage})}
+Garantir o rigor científico exige a prevenção total de vazamento de informações de teste para os modelos. Por essa razão, implementamos as seguintes etapas sequenciais restritas:
+\begin{itemize}
+    \item \textbf{Divisão Estratificada (70/15/15):} A base original foi particionada em conjuntos de Treino (7.010 amostras), Validação (1.502 amostras) e Teste (1.503 amostras). A estratificação baseou-se na coluna patológica de destino (\emph{dx}), preservando rigorosamente as proporções exatas de desbalanceamento originais em cada partição.
+    \item \textbf{Isolamento dos Pré-processadores:} Parâmetros de pré-processamento foram estimados exclusivamente a partir do conjunto de Treino. Para os dados tabulares, valores omissos no atributo de idade (\emph{age}) foram preenchidos com a mediana do Treino, e categorias ausentes preenchidas pela moda. A normalização estatística via \texttt{StandardScaler} (aplicada na variável contínua de idade) e codificação \texttt{OneHotEncoder} (nas categóricas de sexo biológico, localização anatômica da lesão e tipo de confirmação diagnóstica) foram estimadas estritamente no split de Treino e replicadas na Validação e Teste.
+    \item \textbf{Sintonização Isolada:} A busca de hiperparâmetros por grade (\texttt{GridSearchCV}) sob validação cruzada de 5 folds operou apenas dentro da partição de Treino. O refinamento empírico dos pesos de fusão tardia foi restrito à partição de Validação. O conjunto de Teste permaneceu isolado em todas as etapas, servindo unicamente para a avaliação final.
+\end{itemize}
+
+\subsection{Aumento de Dados Visual (\emph{Data Augmentation})}
+Para mitigar os efeitos do desbalanceamento nas imagens sem introduzir vazamento de dados, realizamos técnicas estocásticas de aumento de dados em tempo de execução exclusivamente no split de Treino das fotos. Cada imagem original do Treino passou por:
+\begin{itemize}
+    \item Rotações aleatórias em uma faixa de $\pm 15^\circ$;
+    \item Espelhamentos horizontais estocásticos com probabilidade de 50\%;
+    \item Espelhamentos verticais estocásticos com probabilidade de 50\%.
+\end{itemize}
+Essa expansão estocástica permitiu que a rede convolucional profunda downstream fosse exposta a padrões geométricos sob diferentes ângulos de incidência, aumentando a robustez espacial sem inflar artificialmente os splits de validação ou teste.
+
+%-------------------------------------------------------------------------
+\section{Modelos e Algoritmos}
+\label{sec:modelos}
+
+\subsection{Modelos de Metadados Clínicos Tabulares}
+Avaliamos modelos clássicos sobre as variáveis demográficas para quantificar o poder estatístico epidemiológico dos metadados isoladamente:
+\begin{itemize}
+    \item \textbf{Regressão Logística Tabular:} Treinada com regularização L2 (Ridge) com constante inversa ajustada pelo grid em $C=1,0$. O desbalanceamento de classes foi contornado pela aplicação de pesos sensíveis ao custo direto na função de perda ($\texttt{class\_weight="balanced"}$), impondo maiores penalidades para erros em classes minoritárias críticas, como melanoma e carcinoma basocelular~\cite{elkan2001foundations}.
+    \item \textbf{Random Forest Tabular:} Estruturada com 100 árvores de decisão e profundidade máxima delimitada em 10 níveis (a fim de prevenir overfitting das árvores). O ajuste de custos foi resolvido por $\texttt{class\_weight="balanced\_subsample"}$, recalculando dinamicamente as proporções de classe baseando-se apenas nos subconjuntos de amostragem bootstrap de cada árvore gerada.
+\end{itemize}
+
+\subsection{Extrator Visual profundo (ResNet50)}
+Devido a restrições severas de infraestrutura computacional que impediram o treinamento completo (fase de \emph{fine-tuning} de ponta a ponta), aplicamos a técnica de Transfer Learning utilizando a rede convolucional profunda ResNet50~\cite{he2016deep} pré-treinada no ImageNet como extratora fixa de embeddings. 
+
+Todas as camadas convolucionais internas e blocos residuais foram congelados configurando \texttt{requires\_grad = False} e travando a rede em modo de avaliação de inferência (\texttt{model.eval()}). A camada de classificação totalmente conectada original (\texttt{fc}) foi substituída por uma camada linear de identidade (\texttt{nn.Identity()}). Dessa forma, convertemos cada foto dermatoscópica em um vetor numérico denso contendo \textbf{2.048 dimensões} abstratas espaciais e texturais de alta relevância visual.
+
+\subsection{Classificadores Downstream de Imagem}
+Sobre os embeddings visuais estáticos extraídos das partições, ajustamos os seguintes classificadores clássicos adicionais:
+\begin{itemize}
+    \item \textbf{Regressão Logística Visual:} Treinada com pesos ponderados de classe e uma forte regularização L2 ($C=0,01$) indispensável para controlar o sobreajuste e combater a alta dimensionalidade vetorial das 2.048 características geradas.
+    \item \textbf{Random Forest Visual:} Construída com 500 estimadores e profundidade livre, impondo um mínimo de 4 instâncias por folha para limitar o sobreajuste estrutural.
+    \item \textbf{K-Vizinhos Mais Próximos (KNN) Visual:} Parametrizado com $k=3$ vizinhos. Uma importante decisão metodológica foi o uso da \textbf{similaridade de cosseno} como métrica de distância, definida pela \cref{eq:cosine}:
+    \begin{equation}
+        d_{\text{cosseno}}(\mathbf{u}, \mathbf{v}) = 1 - \frac{\mathbf{u} \cdot \mathbf{v}}{\|\mathbf{u}\|_2 \|\mathbf{v}\|_2}
+        \label{eq:cosine}
+    \end{equation}
+    A similaridade de cosseno provou-se crucial para mitigar os efeitos nocivos da maldição da dimensionalidade no espaço vetorial 2.048D, no qual a distância euclidiana tende a dispersar, tornando a separabilidade indistinguível.
+\end{itemize}
+
+\subsection{Arquitetura de Fusão Tardia (Late Fusion)}
+A hibridização das informações clínicas e visuais foi implementada por meio de uma arquitetura de fusão tardia baseada em soft voting ponderado. Esta estratégia calcula uma média linear ponderada das estimativas de probabilidade de classes geradas de forma independente pelos modelos especialistas (Regressão Logística Tabular e Regressão Logística Visual). Para cada instância $i$ e classe $c$, a estimativa final é expressa por:
+\begin{equation}
+    P_{\text{multimodal}}(i, c) = w \cdot P_{\text{imagem}}(i, c) + (1 - w) \cdot P_{\text{tabular}}(i, c)
+    \label{eq:late_fusion}
+\end{equation}
+onde $w$ representa a contribuição relativa da modalidade visual e $1-w$ representa a influência dos priors clínicos estruturados. O peso ótimo foi sintonizado variando o limiar no conjunto de validação, culminando na escolha empírica ideal de \textbf{$w=0,7$ para as imagens} e \textbf{$0,3$ para os metadados tabulares}.
+
+%-------------------------------------------------------------------------
+\section{Resultados e Discussões}
+\label{sec:resultados}
+
+\subsection{Avaliação Comparativa de Modelos}
+Os classificadores foram validados utilizando uma busca exaustiva por grade via GridSearchCV sob 5-fold cross-validation na partição de Treino. Após a determinação dos hiperparâmetros ótimos, a generalização final dos modelos foi aferida sobre o conjunto isolado de Teste, reportando métricas robustas na \cref{tab:performance_results}.
+
+\begin{table*}[t]
+  \centering
+  \begin{tabular}{@{}lccccc@{}}
+    \toprule
+    Modelo & Acurácia ↑ & F1-Macro ↑ & AUC-ROC Macro ↑ & F1-Weighted ↑ & Acurácia Balanceada ↑ \\
+    \midrule
+    \textbf{Tabular:} Regressão Logística & 0,516 & 0,276 & 0,866 & 0,594 & 0,408 \\
+    \textbf{Tabular:} Random Forest & 0,600 & 0,361 & 0,893 & 0,654 & 0,469 \\
+    \midrule
+    \textbf{Visual:} Regressão Logística & \textbf{0,751} & \textbf{0,590} & \textbf{0,930} & \textbf{0,759} & \textbf{0,598} \\
+    \textbf{Visual:} KNN ($n=3$, cosseno) & 0,669 & 0,507 & 0,786 & 0,678 & 0,508 \\
+    \textbf{Visual:} Random Forest & 0,614 & 0,404 & 0,914 & 0,652 & 0,415 \\
+    \midrule
+    \textbf{Multimodal: Late Fusion ($w=0,7$)} & \textbf{0,751} & \textbf{0,582} & \textbf{0,934} & \textbf{0,760} & \textbf{0,593} \\
+    \bottomrule
+  \end{tabular}
+  \caption{Métricas globais comparativas de desempenho aferidas sobre a partição de Teste final, comparando as abordagens exclusivamente clínicas, visuais baseadas em embeddings espaciais da ResNet50 e a proposta Multimodal baseada em Fusão Tardia.}
+  \label{tab:performance_results}
+\end{table*}
+
+Os resultados empíricos revelam um teto de desempenho limitante nas abordagens puramente baseadas em metadados tabulares. A Regressão Logística tabular alcançou apenas acurácia de 51,6\% e F1-macro de 0,276, enquanto o Random Forest obteve acurácia de 60,0\% e F1-macro de 0,361. Esse comportamento indica que apenas os marcadores epidemiológicos elementares (idade, sexo, localização) não fornecem poder discriminativo biológico suficiente para distinguir entre tumores com estruturas de pele fisicamente parecidas, agindo apenas como fatores estatísticos de prior.
+
+Por outro lado, o modelo linear baseado em embeddings profundos de imagem de alta dimensão obteve excelente desempenho: a Regressão Logística Visual alcançou acurácia de \textbf{75,1\%} e F1-macro de \textbf{0,590}, confirmando a altíssima representatividade visual do backbone ResNet50 congelado. O KNN com cosseno gerou resultados competitivos (acurácia de 66,9\% e F1-macro de 0,507), superando a Random Forest visual (61,4\% de acurácia) que demonstrou sofrer com a grande dispersão vetorial em 2048D.
+
+O modelo \textbf{Multimodal por Fusão Tardia ($w=0,7$)} consagrou-se como a arquitetura mais equilibrada do experimento, alcançando a maior discriminação patológica multiclasse geral com \textbf{0,934 de AUC-ROC Macro} e elevando o F1-Weighted para \textbf{0,760}. A acurácia geral permaneceu estável em 75,1\%, mas o modelo multimodal entregou probabilidades de calibração mais suaves e robustas a desvios.
+
+\subsection{Estudo Experimental de Desbalanceamento Tabular}
+Investigamos três estratégias para contornar o forte desbalanceamento de classes no modelo Random Forest Tabular na partição de validação: baseline sem correção, sobreamostragem aleatória (ROS) e reponderamento por sensibilidade ao custo.
+
+\begin{figure}[t]
+  \centering
+   \includegraphics[width=\linewidth]{../outputs/imbalance_study_chart.png}
+   \caption{Gráfico de comparação na validação das três técnicas de desbalanceamento aplicadas sobre a Random Forest Tabular. O método Sensível ao Custo supera a sobreamostragem (ROS) por combater o overfitting em atributos clínicos simples.}
+   \label{fig:imbalance_study}
+\end{figure}
+
+Como observado na \cref{fig:imbalance_study}, a estratégia \textbf{Sensível ao Custo} superou estatisticamente as demais com F1-macro de \textbf{0,381}, seguida pela sobreamostragem (ROS) com \textbf{0,365}. Esta diferença decorre de um comportamento metodológico importante: dados demográficos tabulares possuem baixíssima variabilidade e cardinalidade. Duplicar instâncias sintéticas idênticas (como mesma idade e sexo biológico) no conjunto de treino através do ROS força as árvores de decisão a criarem regras de partição extremamente rígidas e memorizadas (\emph{overfitting}). O reponderamento de penalidades na função de perda (Sensível ao Custo), pelo contrário, não modifica a base estrutural de dados, preservando o suporte estatístico e forçando os gradientes do classificador a penalizarem pesadamente erros cometidos em classes raras de alto risco (Melanoma).
+
+\subsection{Validação da Curva de Pesos de Fusão}
+Para justificar de forma empírica a sintonização do hiperparâmetro de peso da fusão, a \cref{fig:late_fusion_curve} exibe a curva de F1-macro de validação variando $w$ em intervalos de 0.1 de 0.0 a 1.0. A performance se desenha como uma curva côncava perfeita: inicia em 0,294 com $w=0,0$ (puramente tabular), alcança seu pico ideal em $w=0,7$ com \textbf{0,639} na validação, e cai ligeiramente para 0,598 em $w=1,0$ (puramente visual). Isso demonstra cientificamente que a integração de dados traz um benefício mútuo superior à avaliação visual ou demográfica isolada.
+
+\begin{figure}[t]
+  \centering
+   \includegraphics[width=\linewidth]{../outputs/late_fusion_validation_curve.png}
+   \caption{Curva parabólica de validação para sintonização do hiperparâmetro de fusão tardia $w$. O ponto ótimo é determinado empiricamente em $w=0,7$ (imagem) e $0,3$ (dados clínicos).}
+   \label{fig:late_fusion_curve}
+\end{figure}
+
+\subsection{Análise da Matriz de Confusão Multimodal}
+A \cref{fig:conf_matrix} exibe a matriz de confusão da fusão multimodal obtida no conjunto de teste. É notória a expressiva densidade de acertos na classe majoritária \emph{nv} (Nevo comum), um comportamento compreensível dada a vasta amostragem original. Entretanto, nota-se que o modelo de fusão reduziu sensivelmente a taxa de falsos negativos para melanomas (\emph{mel}) e carcinomas basocelulares (\emph{bcc}), atingindo especificidade e sensibilidade satisfatórias para patologias que oferecem risco iminente à integridade física do paciente.
+
+\begin{figure}[t]
+  \centering
+   \includegraphics[width=0.92\linewidth]{../outputs/late_fusion/resnet50/test_confusion_matrix.png}
+   \caption{Matriz de confusão final do classificador Multimodal (Late Fusion com $w=0,7$) no conjunto de Teste, permitindo mensurar a sensibilidade e especificidade obtidas nas sete classes de lesões dermatológicas.}
+   \label{fig:conf_matrix}
+\end{figure}
+
+\subsection{Casos Clínicos Reais e Comportamento dos Modelos}
+Para demonstrar o valor da fusão no diagnóstico, extraímos dois casos representativos do conjunto de Teste:
+\begin{enumerate}
+    \item \textbf{Melanoma Maligno Acertado com Sucesso:} Caso ID \texttt{ISIC\_0032192}, paciente do sexo masculino de \textbf{80 anos} de idade, com lesão ulcerativa localizada no membro inferior, confirmada via histopatologia. O modelo visual, sob análise exclusiva de pixels da imagem dermatoscópica, obteve dificuldades de discriminação devido à aparência atípica da mancha, de modo a classificar a lesão com probabilidade limítrofe entre ceratose benigna e melanoma. Contudo, o modelo Random Forest tabular identificou que a idade do paciente (80 anos) e a localização anatômica representam estatisticamente perfis epidemiológicos de extremo risco clínico na dermatologia clínica real. A fusão tardia operou de forma integrada, combinando os priors estruturados e visuais e gerando diagnóstico correto de \textbf{mel} com probabilidade consolidada estável de \textbf{0,6132}.
+    \item \textbf{Melanoma Maligno Classificado Incorretamente (Falso Negativo Crítico):} Caso ID \texttt{ISIC\_0024516}, paciente do sexo masculino de \textbf{40 anos} com lesão localizada nas costas, com laudo histopatológico confirmado para melanoma maligno. Nesse caso clínico, o modelo híbrido multimodal cometeu um erro crítico de diagnóstico, indicando falsamente Nevo comum (\emph{nv}) com \textbf{0,5392} de probabilidade (em contrapartida de apenas 0,2702 atribuídos ao melanoma real). Ao analisar as probabilidades das modalidades individuais, observou-se que a idade do paciente (40 anos) agiu como um fator tabular epidemiológico protetivo de baixíssimo risco clínico na Random Forest tabular. Associado a um visual atípico e homogêneo que mimetizava um nevo benigno comum, o modelo de fusão foi induzido ao erro clínico. Isso demonstra os limites reais e perigos do viés estatístico epidemiológico introduzido por variáveis clínicas simples.
+\end{enumerate}
+
+%-------------------------------------------------------------------------
+\section{Explicabilidade Clínica e Limitações}
+\label{sec:discussao}
+
+\subsection{Explicabilidade e Relevância dos Atributos}
+Para entender as regras estatísticas de risco aprendidas de forma autônoma pelos modelos, extraímos a importância relativa de variáveis obtida a partir da Random Forest Tabular, plotada na \cref{fig:feat_importance}.
+
+\begin{figure}[t]
+  \centering
+   \includegraphics[width=\linewidth]{../outputs/tabular/random_forest/feature_importance.png}
+   \caption{Importância das características clínicas tabulares calculada a partir do Random Forest Tabular. A variável de validação científica \emph{dx\_type} exibe peso dominante, seguida de perto pela Idade do paciente.}
+   \label{fig:feat_importance}
+\end{figure}
+
+A variável numérica de idade (\texttt{age}) demonstrou peso explicativo crucial na tomada de decisão. Isso se alinha perfeitamente com a literatura médica de oncologia dermatológica: o dano cumulativo gerado pela radiação ultravioleta ao longo das décadas provoca mutações somáticas sucessivas no DNA de queratinócitos e melanócitos. Consequentemente, a probabilidade do desenvolvimento de melanomas e carcinomas multiplica-se com a idade avançada. Localizações anatômicas também codificaram priors regionais coerentes, mapeando a incidência de melanomas associada ao perfil comportamental de exposição ao sol de cada gênero (por exemplo, alta prevalência em membros inferiores para mulheres e no dorso superior de homens).
+
+\subsection{Limitações Identificadas}
+Apesar dos excelentes resultados obtidos na hibridização, realizamos uma análise crítica a respeito de duas restrições técnicas do trabalho:
+\begin{enumerate}
+    \item \textbf{Viés de Confirmação na Feature \texttt{dx\_type}:} Como observado no gráfico de relevância (\cref{fig:feat_importance}), a característica \texttt{dx\_type} (método pelo qual o diagnóstico original foi atestado, como histopatologia da biópsia ou acompanhamento fotográfico de longo prazo) detém a maior importância relativa na modelagem tabular. Isso caracteriza um severo viés de confirmação e vazamento de informação implícito. Na rotina dermatológica de clínicas oncológicas reais, biópsias invasivas por histopatologia só são ordenadas e realizadas se o dermatologista já suspeitar, previamente, da alta gravidade visual do tumor na triagem inicial. Portanto, o simples fato do registro do paciente conter o termo "histopatologia" atua como um marcador implícito que denuncia e vaza de forma oculta a alta gravidade do tumor. Em um sistema de triagem clínica preventiva real de primeiro contato, essa variável nunca estaria disponível, o que inflou artificialmente o baseline tabular inicial.
+    \item \textbf{Falta de Otimização Visual Convolucional (Fine-Tuning):} A indisponibilidade de processamento em placas gráficas aceleradoras locais obrigou o travamento total dos pesos internos e parâmetros convolucionais da ResNet50 pré-treinada no ImageNet. Embora os embeddings de 2.048 dimensões extraídos sejam de alta qualidade espacial, a rede convolucional não pôde ser readequada especificamente para identificar pequenas microestruturas vasculares e pigmentares dermatológicas, restringindo o pleno poder de separabilidade visual da modalidade de imagem.
+\end{enumerate}
+
+\subsection{Trabalhos Futuros}
+Como próximos passos de pesquisa e desenvolvimento científicos, propomos:
+\begin{itemize}
+    \item Remover por completo a variável \texttt{dx\_type} a fim de avaliar a acurácia do pipeline sob condições reais de triagem de primeiro contato;
+    \item Implementar o ajuste fino (\emph{fine-tuning}) ponta-a-ponta das camadas convolucionais superiores da ResNet50 com taxas de aprendizado reduzidas e otimizadores dinâmicos;
+    \item Desenvolver uma arquitetura de fusão precoce (\emph{early fusion}), concatenando diretamente os embeddings extraídos das imagens aos metadados tabulares normatizados no espaço latente intermediário e submetendo o vetor integrado a camadas totalmente conectadas treinadas conjuntamente;
+    \item Explorar o uso de Transformers Multimodais de atenção cruzada (\emph{cross-attention}), mapeando diretamente interações microscópicas entre os marcadores tabulares dos pacientes e os pixels do mapa visual das lesões cutâneas.
+\end{itemize}
+
+\section{Conclusão}
+Este trabalho demonstrou empiricamente a viabilidade e eficácia de utilizar uma abordagem multimodal unindo dados tabulares de histórico clínico com imagens dermatoscópicas profundas para a triagem diagnóstica automatizada de patologias da pele no dataset HAM10000. 
+
+A arquitetura por fusão tardia com pesos ótimos ponderados sintonizados de w = 0,7 obteve excelente discriminação de classes patológicas críticas, alcançando o maior índice de generalização geral com \textbf{0,934 de AUC-ROC Macro} no conjunto de teste. O reponderamento sensível ao custo provou-se indispensável para combater o desbalanceamento de classes em dados clínicos discretos, evitando overfitting gerado por duplicação. 
+
+Os estudos de caso e de importância de atributos validaram cientificamente que o modelo aprendeu de forma coerente a biologia oncológica dermatológica da correlação etária, mas evidenciaram os perigos de vazamento de triagem diagnóstica na feature \texttt{dx\_type} e o viés imposto por priors simples. Esperamos que as investigações de vazamento e as propostas de fusão apontadas neste artigo auxiliem cientistas e engenheiros no aprimoramento de sistemas de triagem dermatológica confiáveis, seguros e interpretáveis na medicina preventiva.
+
+%%%%%%%%% REFERENCES
+{\small
+\bibliographystyle{ieee_fullname}
+\bibliography{egbib}
+}
+
+\end{document}

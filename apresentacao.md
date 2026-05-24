@@ -17,9 +17,9 @@ Este documento contém os slides e o roteiro de fala para a apresentação técn
 *   **Docente Orientador:** Prof. Luiz Eduardo S. de Oliveira
 
 ### Roteiro de Fala
-"Bom dia, professor Luiz Eduardo e demais presentes. Meu nome é Mateus Ruzene e, junto com o meu colega Bruno Crestani, apresentarei a defesa do nosso projeto final da disciplina de Aprendizagem de Máquina. O nosso trabalho intitula-se 'Classificação de Lesões de Pele: Uma Abordagem Multimodal com Dados Tabulares e Imagens Dermatoscópicas'. 
+"Bom dia, professor Luiz Eduardo e a todos que nos assistem. Eu sou o Mateus Ruzene e, junto com o meu colega Bruno Crestani, vou apresentar a defesa do nosso projeto final da disciplina de Aprendizagem de Máquina, intitulado 'Classificação de Lesões de Pele: Uma Abordagem Multimodal com Dados Tabulares e Imagens Dermatoscópicas'. 
 
-Nesta apresentação, demonstraremos como abordamos cientificamente um dos problemas mais desafiadores na medicina diagnóstica computacional: a detecção precoce do câncer de pele. O nosso principal foco metodológico foi estruturar um pipeline livre de vazamento de dados (*data leakage*), comparando rigorosamente o poder preditivo de metadados demográficos e imagens, culminando em um modelo multimodal robusto fundido via fusão tardia (*late fusion*). Vamos iniciar detalhando a motivação por trás do problema."
+Hoje, nós vamos mostrar como lidamos com a detecção precoce do câncer de pele, que é um dos problemas mais difíceis da medicina diagnóstica. Nosso maior cuidado metodológico foi construir um pipeline robusto e totalmente livre de vazamento de dados, o famoso *data leakage*. Ao longo da apresentação, nós vamos comparar o poder preditivo dos dados clínicos dos pacientes com as imagens e, no fim, mostrar como combinamos as duas visões usando a fusão tardia (*late fusion*). Vamos começar explicando por que esse problema é tão importante."
 
 ---
 
@@ -38,11 +38,9 @@ Nesta apresentação, demonstraremos como abordamos cientificamente um dos probl
     *   Desenvolver e comparar modelos preditivos baseados exclusivamente em metadados clínicos (dados tabulares), exclusivamente em dados visuais (embeddings convolucionais de alta dimensionalidade) e, por fim, integrá-los de forma híbrida e multimodal.
 
 ### Roteiro de Fala
-"Para contextualizar o problema, o câncer de pele é um dos maiores desafios de saúde pública. O melanoma, especificamente, tem evolução extremamente rápida e agressiva. Contudo, se detectado precocemente, a taxa de sobrevida de cinco anos supera os 99%. A dificuldade no diagnóstico automatizado reside na alta semelhança visual entre patologias benignas e malignas — um Nevo melanocítico comum e um Melanoma inicial podem parecer quase idênticos a olhos não treinados e até mesmo a classificadores visuais simples.
+"Para contextualizar, o câncer de pele é um dos tumores mais frequentes do mundo. O melanoma é a sua forma mais grave, mas se a gente descobrir ele logo no início, a chance de cura passa de 99%. O grande desafio para a computação é que lesões benignas comuns e tumores malignos são visualmente muito parecidos. Às vezes, até para um dermatologista experiente é difícil diferenciar um nevo comum de um melanoma inicial só no olho.
 
-Além disso, na prática médica dermatológica real, o diagnóstico nunca é baseado apenas em olhar para a mancha. O clínico sempre avalia o perfil epidemiológico do paciente: a sua idade, sexo e a região anatômica da lesão. Por exemplo, melanomas são estatisticamente mais comuns em populações idosas devido à exposição solar cumulativa. 
-
-Por isso, o objetivo central deste projeto foi mimetizar o comportamento médico real: extrair priors probabilísticos dos dados demográficos clínicos e combiná-los a representações latentes profundas das imagens para criar uma ferramenta de auxílio diagnóstico confiável e de alta interpretabilidade."
+No entanto, no dia a dia, os médicos não olham só para a mancha. Eles usam também o histórico clínico do paciente — como a idade, o sexo e onde a lesão está localizada. Esses metadados dão pistas estatísticas muito fortes. Por isso, nosso objetivo foi imitar esse raciocínio médico: criar modelos focados só nos dados do paciente, outros focados só nas imagens e, depois, combinar essas duas visões em um único modelo multimodal."
 
 ---
 
@@ -63,13 +61,11 @@ Por isso, o objetivo central deste projeto foi mimetizar o comportamento médico
     *   **Data Augmentation Visual (Treino):** Rotações aleatórias ($\pm 15^\circ$), espelhamentos horizontais e verticais estocásticos aplicados exclusivamente no split de treino para mitigar o desbalanceamento sem inflar os conjuntos de validação/teste.
 
 ### Roteiro de Fala
-"Trabalhamos com o dataset de referência HAM10000, contendo 10.015 dados pareados. Como o professor pode observar no histograma de distribuição de classes que geramos, o desbalanceamento é severo. A classe 'nv' (Nevo Melanocítico, que é benigno) é massivamente majoritária, representando mais de 67% do total (6.705 amostras). Em contrapartida, classes críticas de câncer, como melanoma (mel) e carcinoma basocelular (bcc), são minoritárias, enquanto o dermatofibroma (df) representa apenas 1% dos dados.
+"Nós utilizamos o famoso dataset HAM10000, que tem pouco mais de 10 mil amostras. Como dá para ver no gráfico que geramos, o desbalanceamento das classes é gigantesco. A classe de nevos — que são as pintas benignas comuns — representa 67% do dataset, com mais de 6.700 amostras. Já os tumores graves como melanomas (mel) e carcinomas (bcc) são bem mais raros, e o dermatofibroma representa só 1% dos dados.
 
-Para garantir a validade científica do projeto, aplicamos um rigoroso pipeline preventivo de vazamento de dados. Primeiro, dividimos o dataset em Treino (70%), Validação (15%) e Teste (15%) de forma estritamente estratificada. Nenhum dado de teste ou validação foi utilizado durante as fases de ajuste de parâmetros. 
+Para garantir que nossos experimentos fossem válidos cientificamente, a gente dividiu a base em Treino (70%), Validação (15%) e Teste (15%) usando estratificação de classes, garantindo que a proporção original fosse mantida em todos os splits e nenhum dado do teste ou validação vazasse para a fase de ajuste de parâmetros. 
 
-Para os metadados tabulares, normalizamos a idade e codificamos em one-hot os dados categóricos, incluindo o atributo `dx_type`, que indica o método de confirmação do diagnóstico. 
-
-Para as imagens visuais, de forma a combater o desbalanceamento e a falta de variabilidade espacial nas fotos originais, aplicamos Data Augmentation estocástico offline estritamente na partição de Treino, com rotações aleatórias de 15 graus e inversões horizontais/verticais. Isso dobrou o tamanho do nosso conjunto de treino visual, ensinando os classificadores a serem invariantes à orientação geométrica da lesão na pele."
+Nos dados tabulares dos pacientes, tratamos valores faltantes e aplicamos normalização usando o `StandardScaler` na variável de idade e o `OneHotEncoder` nas categóricas. Nas imagens, para evitar que o modelo decorasse padrões devido ao desbalanceamento, usamos técnicas de Data Augmentation estocástico exclusivamente no conjunto de treino, aplicando rotações e espelhamentos aleatórios. Isso dobrou nossa base de treino visual de forma segura, sem inflar os conjuntos de teste."
 
 ---
 
@@ -91,15 +87,11 @@ Para as imagens visuais, de forma a combater o desbalanceamento e a falta de var
     *   *Fusão Tardia (Late Fusion):* Otimização do peso multimodal $w$ avaliado na validação, resultando em um peso ótimo de **$w = 0.7$ para imagem** e **$0.3$ para metadados tabulares**.
 
 ### Roteiro de Fala
-"A arquitetura que propomos para solucionar este problema baseia-se na Fusão Tardia (ou Late Fusion). Em vez de tentar concatenar as características brutas — o que causaria um desbalanço dimensional massivo, já que os metadados têm poucas colunas e as imagens geram vetores gigantes —, optamos por fundir as decisões em nível de probabilidade. A fórmula matemática realiza uma média ponderada soft-voting das probabilidades preditas por cada modelo especialista, onde $w$ representa o peso atribuído à imagem dermatoscópica.
+"A arquitetura proposta usa a Fusão Tardia (ou Late Fusion). Em vez de tentar juntar as imagens brutas e os dados dos pacientes logo de início — o que daria um problema enorme de proporção nas dimensões —, nós preferimos rodar modelos especialistas em cada tipo de dado e depois combinar os seus resultados. A fórmula faz uma média ponderada das probabilidades que cada modelo dá para cada uma das 7 classes.
 
-Para o pipeline visual, adotamos uma abordagem extremamente robusta de Transfer Learning via Extração de Embeddings. Utilizamos uma rede profunda ResNet50 pré-treinada. Congelamos todas as suas camadas convolucionais e removemos a cabeça classificadora original, extraindo um vetor de embeddings de 2.048 dimensões a partir do pooling médio global. 
+Para as imagens, usamos transferência de aprendizado com uma ResNet50 pré-treinada. Nós congelamos as camadas dela para trabalhar como um extrator de características fixo e trocamos a camada final por uma camada de identidade. Com isso, convertemos cada imagem em um vetor denso de 2.048 dimensões.
 
-Sobre esses embeddings e sobre os metadados tabulares, rodamos algoritmos clássicos do scikit-learn. Todos os classificadores foram otimizados via busca em grade (GridSearchCV) com validação cruzada de 5 folds sobre a partição de Treino. 
-
-Um destaque importante: na Regressão Logística de Imagem, o parâmetro de regularização ideal encontrado pelo Grid foi $C=0.01$, o que indica uma penalização muito forte, perfeitamente coerente para evitar overfitting no espaço latente de alta dimensionalidade de 2.048 dimensões. No KNN de Imagem, a escolha automática de distância de cosseno pelo GridSearchCV se provou superior à distância euclidiana, pois a similaridade angular é muito mais representativa em embeddings normalizados. 
-
-Finalmente, o ajuste do peso multimodal $w$ foi feito de forma empírica sobre o conjunto de validação para evitar qualquer vazamento. Encontramos que o peso ideal é $w = 0.7$, atribuindo 70% de peso para o classificador visual e 30% para o classificador epidemiológico tabular. Vamos agora ver os detalhes de código dessa implementação."
+Sobre esses vetores e sobre os metadados dos pacientes, nós otimizamos classificadores clássicos com busca em grade (GridSearchCV) e validação cruzada de 5 folds sobre o treino. Um destaque técnico importante: a Regressão Logística das imagens escolheu uma regularização forte com C=0.01 para lidar com a alta dimensionalidade de 2.048 características. O KNN visual foi otimizado com similaridade de cosseno, que funciona muito melhor do que a euclidiana em espaços de alta dimensão. Por fim, encontramos na Validação que o peso ideal para a combinação é 0.7 para a imagem e 0.3 para os metadados."
 
 ---
 
@@ -146,11 +138,11 @@ def average_probabilities(tab_probs, image_probs, tab_classes, image_classes, im
 ```
 
 ### Roteiro de Fala
-"Neste slide, exibimos a espinha dorsal de implementação do nosso pipeline, dividida em três blocos bem definidos. No bloco 1, demonstramos o uso do framework PyTorch para instanciar a ResNet50 com os pesos de última geração IMAGENET1K_V2. Destaco aqui a substituição explícita do atributo `fc` — a camada totalmente conectada da cabeça original da rede — por uma classe `nn.Identity()`. O método `eval()` foi chamado e todos os gradientes foram desativados com `requires_grad = False`. Isso garante que o modelo atue puramente como um extrator de características congelado de alta performance, economizando tempo computacional precioso sem perder o poder das representações visuais previamente aprendidas no ImageNet.
+"Aqui nós temos os trechos essenciais do nosso código em PyTorch e Scikit-Learn. No primeiro bloco, instanciamos a ResNet50 e configuramos o atributo `fc` como `nn.Identity()`. Com o `eval()` e o `requires_grad = False` para todos os parâmetros, garantimos que a rede funcione de maneira estática, gerando os embeddings sem recalcular gradientes, o que poupa muito processamento.
 
-No bloco 2, apresentamos o pré-processador estruturado do Scikit-Learn usando a classe `ColumnTransformer`. As variáveis numéricas e categóricas entram em caminhos paralelos e isolados. Para a idade, aplicamos um imputer com estratégia de mediana e o `StandardScaler`. Para as categóricas, aplicamos imputer de valor mais frequente seguido de `OneHotEncoder` configurado com `handle_unknown='ignore'`. Esta estrutura em forma de Pipeline impede de forma absoluta o vazamento de estatísticas (como a média global ou novas categorias) dos conjuntos de Validação/Teste para o conjunto de Treino.
+No segundo bloco, temos o pré-processamento tabular usando o `ColumnTransformer` do Scikit-Learn. Criamos pipelines separados para idade e variáveis categóricas. Centralizar isso em um pipeline unificado impede de forma absoluta que dados de validação ou teste vazem para o treino (o temido data leakage).
 
-Por fim, no bloco 3, apresentamos a função de Fusão Tardia. Ela é responsável por alinhar ordenadamente os outputs probabilísticos dos dois classificadores especialistas, que podem ter aprendido ordens de classes distintas durante o fit interno do Scikit-Learn. Ela inicializa matrizes zeradas do tamanho do dataset, distribui as probabilidades estimadas correspondentes e calcula o produto matricial final ponderado pelo hiperparâmetro de peso visual. Esse arranjo limpo permitiu avaliar com precisão cirúrgica a generalização de cada submodelo."
+No terceiro bloco, está a função de fusão tardia. Como os modelos podem treinar em ordens diferentes de classes, essa função garante que os outputs estejam alinhados nos índices corretos de classes e faz a média ponderada usando o nosso peso `w` de 0.7."
 
 ---
 
@@ -179,19 +171,15 @@ Por fim, no bloco 3, apresentamos a função de Fusão Tardia. Ela é responsáv
     *   *Predição Incorreta Crítica (Melanoma classificado como Nevo):* ID `ISIC_0024516`, Paciente de **40 anos**, sexo masculino, nas costas, confirmado por histopatologia. Verdadeiro: `mel` (Prob: 0.2702), Predito: `nv` (Prob: 0.5392). (Falso negativo causado por semelhança atípica).
 
 ### Roteiro de Fala
-"Entrando na análise detalhada dos resultados, a tabela comparativa central sintetiza nossas descobertas sobre o conjunto de teste independente. O primeiro grande insight é o limite estrutural dos dados tabulares. Embora a Random Forest Tabular alcance 0.60 de acurácia, o seu F1-Macro é baixo, de apenas 0.36. Isso se deve à escassa dimensionalidade e redundância estatística dos metadados demográficos isolados. 
+"Agora vamos analisar os resultados finais no conjunto de teste. O primeiro ponto que chama a atenção é o limite dos metadados sozinhos. A Random Forest com dados tabulares alcançou acurácia de 60%, mas o F1-Macro ficou em apenas 0.36, por conta da pouca informação contida em idade, sexo e localização.
 
-Em contrapartida, as representações visuais latentes da ResNet50 mostraram um desempenho espetacular. A Regressão Logística sobre embeddings visuais atingiu 0.751 de acurácia e 0.590 de F1-Macro. A fusão multimodal tardia ponderada manteve a alta acurácia e elevou o índice discriminatório global de classes ao maior valor registrado no projeto: **0.934 de AUC-ROC Macro**. Isso significa que a combinação híbrida atingiu o melhor balanço no ordenamento de probabilidades clínicas, mitigando alarmes falsos de forma excepcional.
+Por outro lado, o modelo focado só em imagens se saiu muito melhor: a Regressão Logística visual teve acurácia de 75.1% e F1-Macro de 0.59. Ao rodar a fusão multimodal tardia, mantivemos a acurácia alta e conseguimos o maior poder de separação de classes de todo o projeto, alcançando **0.934 de AUC-ROC Macro**.
 
-Apresentamos também um estudo focado no tratamento do desbalanceamento de classes usando a Random Forest Tabular na validação. Como demonstrado no gráfico de colunas à esquerda, a abordagem Sensível ao Custo (Pesos) superou a sobreamostragem manual (ROS), alcançando F1-Macro de 0.381 contra 0.365 do ROS. Justificamos cientificamente esse comportamento: duplicar artificialmente registros tabulares idênticos de pacientes minoritários induz a árvore de decisão ao *overfitting* de dados categóricos. A sensibilidade ao custo, por outro lado, foca os gradientes de erro sem inflar o espaço amostral de forma artificial.
+No gráfico de desbalanceamento na validação, à esquerda, comprovamos que tratar os pesos das classes (Sensível ao Custo) foi melhor do que a sobreamostragem (ROS) na Random Forest tabular, atingindo F1 de 0.381 contra 0.365. Isso acontece porque duplicar dados idênticos de pacientes faz a árvore de decisão decorar padrões de idade e gênero (*overfitting*), enquanto os pesos ajustam a punição do erro diretamente na perda do modelo.
 
-No gráfico central superior, expomos a nossa curva de validação de Late Fusion em função do peso da imagem $w$. Note que a curva de F1-Macro descreve uma parábola suave, partindo de 0.294 (apenas metadados, $w=0.0$), subindo em rampa até atingir o seu ápice exato no peso de $w=0.7$ com F1 de 0.639 na validação, para depois declinar suavemente até 0.598 (apenas imagens, $w=1.0$). Isso comprova empiricamente a complementaridade das duas modalidades.
+No gráfico de validação da fusão multimodal, vemos a parábola do F1-Macro. Começa baixo com 0.294 (usando só metadados), atinge o pico em w=0.7 com 0.639 na validação, e cai para 0.598 (usando só imagens). Isso mostra empiricamente que a combinação de dados demográficos com imagens traz um ganho real de desempenho.
 
-A matriz de confusão no canto inferior direito mostra que o modelo multimodal possui alta especificidade em classes difíceis, como Nevos (nv), onde classificou corretamente 83% das amostras. Contudo, há desafios evidentes. Para ilustrar esses trade-offs clínicos de forma explícita para a banca, extraímos dois casos reais do nosso conjunto de teste. 
-
-No primeiro caso, uma predição correta de Melanoma (mel): um paciente idoso de 80 anos, do sexo masculino, com lesão nos membros inferiores. O modelo calculou com segurança uma probabilidade de 61.3% de melanoma. Aqui, a alta idade do paciente atuou como um prior de alto risco epidemiológico muito forte que auxiliou a classificação visual. 
-
-No segundo caso, exibimos uma falha grave de falso negativo clínico: um melanoma verdadeiro predito incorretamente como Nevo Benigno (nv) em um paciente de 40 anos, com probabilidade de 53.9% de Nevo e apenas 27% de Melanoma. Por ser um paciente mais jovem, o prior clínico tabular induziu o modelo a subestimar a malignidade, uma limitação clínica perfeitamente real que evidencia os trade-offs desse sistema."
+Para ilustrar de forma clara para a banca, trazemos dois casos práticos do conjunto de teste. No primeiro, o modelo acertou com segurança um melanoma em um paciente de 80 anos com 61% de probabilidade, onde a idade avançada ajudou como um fator de risco epidemiológico forte. No segundo, temos um erro crítico: um melanoma em um paciente jovem de 40 anos foi classificado como nevo benigno com 53% de probabilidade. Como o paciente é jovem, o modelo foi induzido a subestimar a gravidade, mostrando um trade-off importante e um limite real dessa abordagem."
 
 ---
 
@@ -201,7 +189,7 @@ No segundo caso, exibimos uma falha grave de falso negativo clínico: um melanom
 *   **Discussão e Principais Insights:**
     *   A fusão tardia multimodal superou a avaliação individual de metadados, entregando a melhor discriminação diagnóstica com **0.934 de AUC-ROC Macro**.
     *   A técnica Sensível ao Custo provou ser mais robusta do que a sobreamostragem (ROS) em metadados demográficos estruturados, evitando *overfitting* de representação.
-    *   Diferentes localizações anatômicas correlacionam-se com maior incidência de patologias específicas (ex: membros inferiores para melanomas em mulheres, costas para homens), aprendidas de forma coerente pelo classificador tabular.
+    *   Diferentes localizações anatômicas correlacionam-se com maior incidence de patologias específicas (ex: membros inferiores para melanomas em mulheres, costas para homens), aprendidas de forma coerente pelo classificador tabular.
 *   **Explicabilidade Clínica (Random Forest - Feature Importance):**
     ![Importância de Características](outputs/tabular/random_forest/feature_importance.png)
     *   A coluna `dx_type` (método de confirmação diagnóstica) obteve o maior peso relativo na Random Forest Tabular, seguida de perto pela **Idade do Paciente (`age`)**.
@@ -214,14 +202,12 @@ No segundo caso, exibimos uma falha grave de falso negativo clínico: um melanom
     3.  Integrar modelos baseados em mecanismos de atenção (Transformers Multimodais) para mapear interações explícitas entre texto clínico e pixels.
 
 ### Roteiro de Fala
-"Para concluir e abrir espaço para a discussão com a banca, resumimos as principais contribuições deste projeto. Provamos com dados empíricos e matemáticos que a Fusão Tardia multimodal é a estratégia mais estável e segura para a classificação dermatológica no HAM10000, unindo o melhor dos priors populacionais e a acuidade visual das redes neurais profundas.
+"Para finalizar, o nosso projeto provou de forma empírica que a fusão de metadados com imagens usando late fusion traz mais estabilidade e precisão para os diagnósticos de lesões de pele.
 
-Trazendo um olhar de explicabilidade clínica, exibimos à direita o gráfico de importância intrínseca de características gerado pelo nosso modelo de Random Forest Tabular. É perceptível que a idade do paciente é o metadado fisiológico de maior relevância, o que converge perfeitamente com a literatura médica oncológica, onde o acúmulo de danos por radiação UV ao longo das décadas aumenta os índices de mutações celulares na derme.
+No gráfico de importância das características da Random Forest à direita, vemos que a variável `dx_type` (o método de confirmação do diagnóstico) e a idade do paciente são os fatores tabulares que mais pesam no resultado. Faz todo sentido biológico a idade ser importante, já que o dano cumulativo do sol na pele aumenta o risco de lesões malignas ao longo dos anos.
 
-Entretanto, como cientistas de dados, devemos ter um olhar extremamente autocrítico sobre as limitações do nosso trabalho. A primeira limitação crítica identificada reside na importância massiva dada à feature `dx_type`. Na prática clínica, o método de verificação — como a realização de uma biópsia histopatológica em oposição a um mero acompanhamento visual — é decidido após o médico suspeitar fortemente de câncer. Portanto, essa variável carrega um viés de triagem implícito que inflou o score dos nossos modelos tabulares baselines, agindo quase como um vazamento indireto. Em sistemas reais de triagem de primeiro contato, essa variável estaria ausente e o desempenho tabular seria menor.
+Mas precisamos ser autocríticos sobre as limitações do nosso trabalho. A maior delas é que a variável `dx_type` (tipo de confirmação do diagnóstico, como biópsia ou acompanhamento de longo prazo) tem um forte viés de triagem. Em um cenário clínico real, o médico só pede uma biópsia se já suspeitar que a lesão é grave. Então, usar essa variável inflou o desempenho do nosso modelo tabular baseline, agindo quase como um vazamento indireto. Em um sistema de triagem de primeiro contato real, ela não estaria disponível. Além disso, não fizemos o fine-tuning da ResNet50 por limitações de hardware de GPU.
 
-A segunda limitação foi a ausência de fine-tuning das camadas convolucionais da ResNet50 por restrições de processamento local, forçando a rede a trabalhar puramente com representações genéricas extraídas do ImageNet.
+Como passos futuros, pretendemos remover variáveis suspeitas de viés para testar um cenário real de primeiro contato, treinar a rede visual de ponta a ponta (end-to-end) e explorar modelos com atenção visual e Transformers Multimodais para alinhar ainda melhor o texto clínico com as imagens dermatoscópicas.
 
-Como trabalhos futuros, propomos a remoção das colunas de confirmação diagnóstica clínica para testar a triagem de primeiro nível pura, além do treinamento end-to-end da arquitetura visual em GPUs dedicadas e a exploração de Cross-Attention Transformers Multimodais para alinhar o espaço visual dermatoscópico aos dados tabulares estruturados. 
-
-Agradecemos a atenção do professor Luiz Eduardo e da banca e ficamos à disposição para quaisquer questionamentos. Muito obrigado."
+Agradecemos ao professor Luiz Eduardo e à banca pela atenção e estamos abertos a perguntas. Obrigado!"
